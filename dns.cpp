@@ -11,19 +11,18 @@
 #include <pcap/pcap.h>
 #include <netinet/udp.h>
 
+using namespace std;
 
 //dns -s server [-p port] -f filter_file
 int main(int argc, char *argv[])
 {
-    using namespace std;
-    const char *const short_opts = "s:f:p:";
-
     string server;
     string filter_file;
     int port = 53;
     while (true)
     {
-        const auto opt = getopt(argc, argv, short_opts);
+        const auto opt = getopt(argc, argv, "s:f:p:");
+
         if (-1 == opt)
             break;
 
@@ -31,7 +30,10 @@ int main(int argc, char *argv[])
 		{
 		case 's':
             if (optarg == nullptr)
-                break;
+            {
+                cerr << "DNS server not specified.\n";
+                return -1;
+            }
             server.assign(optarg);
             break;
 
@@ -41,14 +43,44 @@ int main(int argc, char *argv[])
 
 		case 'f':
             if (optarg == nullptr)
-                break;
+            {
+                cerr << "Filter file not specified.\n";
+                return -1;
+            }
             filter_file.assign(optarg);
             break;
         
         default:
-            cerr << "usage: dns -s server [-p port] -f filter_file";
+            cerr << "usage: dns -s server [-p port] -f filter_file\n";
             return -1;
         }
     }
-    cout << server << "\n" << port << "\n" << filter_file << "\n";
+    if (server.empty() or filter_file.empty())
+    {
+        cerr << "Option -s or -f is missing\n";
+        return -1;
+    }
+    //Create file descriptor for socket
+    int socket_file_descriptor;
+    if (socket_file_descriptor = socket(AF_INET, SOCK_DGRAM, 0))
+    {
+        cerr << "Creating socket file descriptor failed.\n";
+        return -1;
+    }
+
+    //Set optional settings for socket: address reusability etc. 
+    //if (setsockopt(socket_file_descriptor, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, nullptr, nullptr))
+
+    //Bind address to socket
+    const struct sockaddr *address;
+    if ( bind(socket_file_descriptor, (struct sockaddr *)&address, sizeof(address)) <0);
+    {
+        cerr << "Binding address to socket failed.\n";
+        return -1;
+    }
+
+    //listen
+    //accept
+    //https://www.geeksforgeeks.org/socket-programming-cc/
+
 }
