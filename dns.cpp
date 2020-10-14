@@ -61,26 +61,43 @@ int main(int argc, char *argv[])
         return -1;
     }
     //Create file descriptor for socket
-    int socket_file_descriptor;
-    if (socket_file_descriptor = socket(AF_INET, SOCK_DGRAM, 0))
+    int socket_file_descriptor, new_socket;
+    if ((socket_file_descriptor = socket(AF_INET, SOCK_DGRAM, 0)) == 0)
     {
-        cerr << "Creating socket file descriptor failed.\n";
+        cerr << "Creating socket file descriptor failed.\n" << strerror(errno) << "\n";
         return -1;
     }
 
     //Set optional settings for socket: address reusability etc. 
     //if (setsockopt(socket_file_descriptor, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, nullptr, nullptr))
 
+    //Create address
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY; 
+    address.sin_port = htons(port);
+
     //Bind address to socket
-    const struct sockaddr *address;
-    if ( bind(socket_file_descriptor, (struct sockaddr *)&address, sizeof(address)) <0);
+    if ( bind(socket_file_descriptor, (struct sockaddr *)&address, sizeof(address)) <0)
     {
-        cerr << "Binding address to socket failed.\n";
+        cerr << "Binding address to socket failed.\n" << strerror(errno) << "\n";
         return -1;
     }
 
-    //listen
-    //accept
-    //https://www.geeksforgeeks.org/socket-programming-cc/
+    //Listen
+    if (listen(socket_file_descriptor, 0) <0)
+    {
+        cerr << "Listening failed.\n" << strerror(errno) << "\n";
+        return -1;
+    }
 
+    //Accept
+    if ((new_socket = accept(socket_file_descriptor, (struct sockaddr *)&address, (socklen_t*)sizeof(address))) <0) 
+    { 
+        cerr << "Creating new socket failed.\n" << strerror(errno) << "\n";
+        return -1;
+    } 
+    return 0;
+
+    //https://www.geeksforgeeks.org/socket-programming-cc/
 }
