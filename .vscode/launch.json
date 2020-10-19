@@ -8,7 +8,7 @@
             "name": "g++ - Build and debug active file",
             "type": "cppdbg",
             "request": "launch",
-            "program": "dns",
+            "program": "${fileDirname}/${fileBasenameNoExtension}",
             "args": ["-s 8.8.8.8",
                      "-p 5353",
                      "-f file.txt"],

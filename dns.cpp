@@ -10,6 +10,7 @@
 #include <string.h>
 #include <pcap/pcap.h>
 #include <netinet/udp.h>
+#define BUFFER_SIZE 1024
 
 using namespace std;
 
@@ -18,6 +19,7 @@ int main(int argc, char *argv[])
 {
     string server;
     string filter_file;
+    char buffer[BUFFER_SIZE];
     int port = 53;
     while (true)
     {
@@ -62,7 +64,7 @@ int main(int argc, char *argv[])
     }
     //Create file descriptor for socket
     int socket_file_descriptor, new_socket;
-    if ((socket_file_descriptor = socket(AF_INET, SOCK_DGRAM, 0)) == 0)
+    if ((socket_file_descriptor = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
         cerr << "Creating socket file descriptor failed.\n" << strerror(errno) << "\n";
         return -1;
@@ -71,7 +73,7 @@ int main(int argc, char *argv[])
     //Set optional settings for socket: address reusability etc. 
     //if (setsockopt(socket_file_descriptor, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, nullptr, nullptr))
 
-    //Create address
+    //Create server address
     struct sockaddr_in address;
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY; 
@@ -84,20 +86,14 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    //Listen
-    if (listen(socket_file_descriptor, 0) <0)
-    {
-        cerr << "Listening failed.\n" << strerror(errno) << "\n";
-        return -1;
-    }
+    //Client address for response message
+    struct sockaddr_in client_address;
+    socklen_t len_c_adrress = sizeof(client_address);
 
-    //Accept
-    if ((new_socket = accept(socket_file_descriptor, (struct sockaddr *)&address, (socklen_t*)sizeof(address))) <0) 
-    { 
-        cerr << "Creating new socket failed.\n" << strerror(errno) << "\n";
-        return -1;
-    } 
-    return 0;
-
+    //Listen for query
+    ssize_t message_size = recvfrom(socket_file_descriptor, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &len_c_adrress);
+    
+    buffer[message_size] = '\0';
+    printf("%s", buffer);
     //https://www.geeksforgeeks.org/socket-programming-cc/
 }
