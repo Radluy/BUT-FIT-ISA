@@ -11,8 +11,46 @@
 #include <pcap/pcap.h>
 #include <netinet/udp.h>
 #define BUFFER_SIZE 1024
-
+#define DEFAULT_PORT 53
 using namespace std;
+
+//global flag
+bool verbose = false;
+
+/*forwards original query to specified dns server and sends response to client
+*
+*
+*return 0 on success, -1 on error
+*/
+int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_address, int socket_file_descriptor)
+{
+    struct sockaddr_in server_address;
+    if (inet_pton(AF_INET, dns_server.c_str(), &server_address) != 0)   //try ipv4
+    {
+        
+        if (inet_pton(AF_INET6, dns_server.c_str(), &server_address) != 0)  //try ipv6
+        {
+            //linux man page of getaddrinfo
+            struct addrinfo hints;
+            hints.ai_family = AF_UNSPEC;
+            hints.ai_socktype = SOCK_DGRAM;
+            struct addrinfo *result;
+            if (getaddrinfo(nullptr, dns_server.c_str(), &hints, &result) != 0) //try domain name
+            {
+                cerr << "Incorrect IP address or domain name of DNS server specified.\n";
+                return -1;
+            }
+            else
+            {
+                sendto(socket_file_descriptor, (const char *)buffer, strlen(buffer), 0, 
+                (const struct sockaddr *)&result->ai_addr, sizeof(result->ai_addr));    
+                return 0;
+            }
+        }
+    }
+    sendto(socket_file_descriptor, (const char *)buffer, strlen(buffer), 0, (const struct sockaddr *)&server_address, sizeof(server_address));
+    return 0;
+}
 
 //dns -s server [-p port] -f filter_file
 int main(int argc, char *argv[])
@@ -20,10 +58,10 @@ int main(int argc, char *argv[])
     string server;
     string filter_file;
     char buffer[BUFFER_SIZE];
-    int port = 53;
+    int port = DEFAULT_PORT;
     while (true)
     {
-        const auto opt = getopt(argc, argv, "s:f:p:");
+        const auto opt = getopt(argc, argv, "s:f:p:hv");
 
         if (-1 == opt)
             break;
@@ -52,6 +90,19 @@ int main(int argc, char *argv[])
             filter_file.assign(optarg);
             break;
         
+        case 'v':
+            verbose = true;
+            break;
+
+        case 'h':
+            cout << "usage: dns -s server [-p port] -f filter_file\n"
+                    "[-s] IP address or domain name of DNS server the query will be forwarded to.\n"
+                    "[-p] Port on which the program will listen for queries. Default port is 53 if options isn't specified.\n"
+                    "[-f] Name of filter file containing blacklisted domains.\n"
+                    "[-v] Program will run in verbose mode and log debugging information.\n"
+                    "[-h] This help message will be printed.\n";
+            return 0;
+
         default:
             cerr << "usage: dns -s server [-p port] -f filter_file\n";
             return -1;
@@ -59,7 +110,7 @@ int main(int argc, char *argv[])
     }
     if (server.empty() or filter_file.empty())
     {
-        cerr << "Option -s or -f is missing\n";
+        cerr << "Option -s or -f is missing\n" << "usage: dns -s server [-p port] -f filter_file\n";
         return -1;
     }
     //Create file descriptor for socket
@@ -92,8 +143,7 @@ int main(int argc, char *argv[])
 
     //Listen for query
     ssize_t message_size = recvfrom(socket_file_descriptor, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &len_c_adrress);
-    
     buffer[message_size] = '\0';
-    printf("%s", buffer);
+    //printf("%s", buffer); //DEBUG
     //https://www.geeksforgeeks.org/socket-programming-cc/
 }
