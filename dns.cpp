@@ -24,13 +24,14 @@ bool verbose = false;
 */ 
 int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_address, int socket_file_descriptor)
 {
+    //dns_server = dns_server.substr(1);  //vscode debug only
     bool domain = false;
     struct sockaddr_in server_address;
     struct addrinfo *result;
-    if (inet_pton(AF_INET, dns_server.c_str(), &server_address) != 0)   //try ipv4
+    if (inet_pton(AF_INET, dns_server.c_str(), &server_address) != 1)   //try ipv4
     {
         
-        if (inet_pton(AF_INET6, dns_server.c_str(), &server_address) != 0)  //try ipv6
+        if (inet_pton(AF_INET6, dns_server.c_str(), &server_address) != 1)  //try ipv6
         {
             //linux man page of getaddrinfo
             struct addrinfo hints;
@@ -46,18 +47,25 @@ int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_ad
                 domain = true;
             }
         }
+        server_address.sin_family = AF_INET6;
     }
+    else
+    {
+        server_address.sin_family = AF_INET;
+    }
+
+    server_address.sin_port = htons(DEFAULT_PORT);
     int forward_socket_fd;
     if ((forward_socket_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
         cerr << "Creating socket file descriptor failed.\n" << strerror(errno) << "\n";
         return -1;
     }
-    if ( bind(forward_socket_fd, (const struct sockaddr *)&server_address, sizeof(server_address)) < 0 ) 
+    /*if ( bind(forward_socket_fd, (const struct sockaddr *)&server_address, sizeof(server_address)) < 0 ) 
     {
         cerr << "Binding address to socket failed.\n" << strerror(errno) << "\n";
         return -1;
-    }
+    }*/
     //forward query to DNS server
     if (!domain)
     {
@@ -68,9 +76,11 @@ int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_ad
         sendto(socket_file_descriptor, (const char *)buffer, strlen(buffer), 0, (const struct sockaddr *)&result->ai_addr, sizeof(result->ai_addr));
     }
     //recieve response
-    int length = recvfrom(forward_socket_fd, (char *)buffer, BUFFER_SIZE,  0, nullptr, nullptr);
+    //cout << ntohs(server_address.sin_addr.s_addr); //debug
+    int message_length = recvfrom(forward_socket_fd, (char *)buffer, BUFFER_SIZE, 0, nullptr, nullptr);
+    buffer[message_length] = '\0';
     //forward response to client
-    sendto(socket_file_descriptor, (const char *)buffer, length, 0, (const struct sockaddr *)&client_address, sizeof(client_address));
+    sendto(socket_file_descriptor, (const char *)buffer, message_length, 0, (const struct sockaddr *)&client_address, sizeof(client_address));
     return 0;
 }
 
@@ -166,6 +176,8 @@ int main(int argc, char *argv[])
     //Listen for query
     ssize_t message_size = recvfrom(socket_file_descriptor, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &len_c_adrress);
     buffer[message_size] = '\0';
+
+    int rc = forward_query(server, buffer, &client_address, socket_file_descriptor);
     //printf("%s", buffer); //DEBUG
     //https://www.geeksforgeeks.org/socket-programming-cc/
 }
