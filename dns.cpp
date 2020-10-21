@@ -21,10 +21,12 @@ bool verbose = false;
 *
 *
 *return 0 on success, -1 on error
-*/
+*/ 
 int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_address, int socket_file_descriptor)
 {
+    bool domain = false;
     struct sockaddr_in server_address;
+    struct addrinfo *result;
     if (inet_pton(AF_INET, dns_server.c_str(), &server_address) != 0)   //try ipv4
     {
         
@@ -34,7 +36,6 @@ int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_ad
             struct addrinfo hints;
             hints.ai_family = AF_UNSPEC;
             hints.ai_socktype = SOCK_DGRAM;
-            struct addrinfo *result;
             if (getaddrinfo(nullptr, dns_server.c_str(), &hints, &result) != 0) //try domain name
             {
                 cerr << "Incorrect IP address or domain name of DNS server specified.\n";
@@ -42,13 +43,34 @@ int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_ad
             }
             else
             {
-                sendto(socket_file_descriptor, (const char *)buffer, strlen(buffer), 0, 
-                (const struct sockaddr *)&result->ai_addr, sizeof(result->ai_addr));    
-                return 0;
+                domain = true;
             }
         }
     }
-    sendto(socket_file_descriptor, (const char *)buffer, strlen(buffer), 0, (const struct sockaddr *)&server_address, sizeof(server_address));
+    int forward_socket_fd;
+    if ((forward_socket_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    {
+        cerr << "Creating socket file descriptor failed.\n" << strerror(errno) << "\n";
+        return -1;
+    }
+    if ( bind(forward_socket_fd, (const struct sockaddr *)&server_address, sizeof(server_address)) < 0 ) 
+    {
+        cerr << "Binding address to socket failed.\n" << strerror(errno) << "\n";
+        return -1;
+    }
+    //forward query to DNS server
+    if (!domain)
+    {
+        sendto(forward_socket_fd, (const char *)buffer, strlen(buffer), 0, (const struct sockaddr *)&server_address, sizeof(server_address));
+    }
+    else
+    {
+        sendto(socket_file_descriptor, (const char *)buffer, strlen(buffer), 0, (const struct sockaddr *)&result->ai_addr, sizeof(result->ai_addr));
+    }
+    //recieve response
+    int length = recvfrom(forward_socket_fd, (char *)buffer, BUFFER_SIZE,  0, nullptr, nullptr);
+    //forward response to client
+    sendto(socket_file_descriptor, (const char *)buffer, length, 0, (const struct sockaddr *)&client_address, sizeof(client_address));
     return 0;
 }
 
