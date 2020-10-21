@@ -24,14 +24,15 @@ bool verbose = false;
 */ 
 int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_address, int socket_file_descriptor)
 {
-    //dns_server = dns_server.substr(1);  //vscode debug only
+    dns_server = dns_server.substr(1);  //vscode debug only
     bool domain = false;
     struct sockaddr_in server_address;
+    struct in_addr pton_res;
     struct addrinfo *result;
-    if (inet_pton(AF_INET, dns_server.c_str(), &server_address) != 1)   //try ipv4
+    if (inet_pton(AF_INET, dns_server.c_str(), &pton_res) != 1)   //try ipv4
     {
         
-        if (inet_pton(AF_INET6, dns_server.c_str(), &server_address) != 1)  //try ipv6
+        if (inet_pton(AF_INET6, dns_server.c_str(), &pton_res) != 1)  //try ipv6
         {
             //linux man page of getaddrinfo
             struct addrinfo hints;
@@ -54,6 +55,7 @@ int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_ad
         server_address.sin_family = AF_INET;
     }
 
+    server_address.sin_addr = pton_res;
     server_address.sin_port = htons(DEFAULT_PORT);
     int forward_socket_fd;
     if ((forward_socket_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
