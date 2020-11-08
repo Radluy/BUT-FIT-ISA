@@ -2,6 +2,7 @@
  *      Author: Radoslav Elias       *
  *************************************/
 
+using namespace std;
 #include <iostream>
 #include <getopt.h>
 #include <unistd.h>
@@ -12,11 +13,32 @@
 #include <netinet/udp.h>
 #define BUFFER_SIZE 1024
 #define DEFAULT_PORT 53
-using namespace std;
+
+struct DNS_HEADER
+{
+    unsigned short id; // identification number
+ 
+    unsigned char rd :1; // recursion desired
+    unsigned char tc :1; // truncated message
+    unsigned char aa :1; // authoritive answer
+    unsigned char opcode :4; // purpose of message
+    unsigned char qr :1; // query/response flag
+ 
+    unsigned char rcode :4; // response code
+    unsigned char cd :1; // checking disabled
+    unsigned char ad :1; // authenticated data
+    unsigned char z :1; // its z! reserved
+    unsigned char ra :1; // recursion available
+ 
+    unsigned short q_count; // number of question entries
+    unsigned short ans_count; // number of answer entries
+    unsigned short auth_count; // number of authority entries
+    unsigned short add_count; // number of resource entries
+};
+
 
 //global flag
 bool verbose = false;
-
 /*forwards original query to specified dns server and sends response to client
 *
 *
@@ -24,7 +46,7 @@ bool verbose = false;
 */ 
 int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_address, int socket_file_descriptor)
 {
-    dns_server = dns_server.substr(1);  //vscode debug only
+    //dns_server = dns_server.substr(1);  //vscode debug only
     bool domain = false;
     struct sockaddr_in server_address;
     struct in_addr pton_res;
@@ -179,7 +201,10 @@ int main(int argc, char *argv[])
     ssize_t message_size = recvfrom(socket_file_descriptor, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &len_c_adrress);
     buffer[message_size] = '\0';
 
-    int rc = forward_query(server, buffer, &client_address, socket_file_descriptor);
-    //printf("%s", buffer); //DEBUG
+    struct DNS_HEADER *dns = (struct DNS_HEADER *)&buffer;
+
+
+    //int rc = forward_query(server, buffer, &client_address, socket_file_descriptor);
+    printf("%.*s\n", BUFFER_SIZE, buffer); //debug
     //https://www.geeksforgeeks.org/socket-programming-cc/
 }
