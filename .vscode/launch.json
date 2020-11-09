@@ -12,7 +12,7 @@
             "args": ["-s 8.8.8.8",
                      "-p 5353",
                      "-f file.txt"],
-            "stopAtEntry": true,
+            "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,

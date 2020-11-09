@@ -49,9 +49,9 @@ bool verbose = false;
 *
 *return 0 on success, -1 on error
 */ 
-int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_address, int socket_file_descriptor)
+int forward_query(string dns_server, char buffer[BUFFER_SIZE], struct sockaddr_in* client_address, int socket_file_descriptor)
 {
-    dns_server = dns_server.substr(1);  //vscode debug only
+    //dns_server = dns_server.substr(1);  //vscode debug only
     bool domain = false;
     struct sockaddr_in server_address;
     struct in_addr pton_res;
@@ -105,7 +105,8 @@ int forward_query(string dns_server, char *buffer, struct sockaddr_in* client_ad
         sendto(socket_file_descriptor, (const char *)buffer, strlen(buffer), 0, (const struct sockaddr *)&result->ai_addr, sizeof(result->ai_addr));
     }
     //recieve response
-    //cout << ntohs(server_address.sin_addr.s_addr); //debug
+    cout << ntohs(server_address.sin_addr.s_addr); //debug
+    cout << ntohs(server_address.sin_port); //debug
     int message_length = recvfrom(forward_socket_fd, (char *)buffer, BUFFER_SIZE, 0, nullptr, nullptr);
     buffer[message_length] = '\0';
     //forward response to client
@@ -229,7 +230,10 @@ int main(int argc, char *argv[])
 
         cout << req_domain << "\n"
             << query_type << "\n"; //DEBUG
+
+        int rc = forward_query(server, buffer, &client_address, socket_file_descriptor);
+        if (rc != 0)
+            cerr << "Forwarding query failed.\n";
     }
-    //int rc = forward_query(server, buffer, &client_address, socket_file_descriptor);
     //https://www.geeksforgeeks.org/socket-programming-cc/
 }
