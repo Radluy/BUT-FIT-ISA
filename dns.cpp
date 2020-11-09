@@ -202,26 +202,34 @@ int main(int argc, char *argv[])
     struct sockaddr_in client_address;
     socklen_t len_c_adrress = sizeof(client_address);
 
-    //Listen for query
-    ssize_t message_size = recvfrom(socket_file_descriptor, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &len_c_adrress);
-    buffer[message_size] = '\0';
-
-    char *ptr = buffer;
-    ptr += DNS_HEADER_SIZE;
-    while (*ptr != '\x00')
+    while (true)
     {
-        int tmp = (int)*ptr;
-        ptr += 1;
-        for (int i = 0; i < tmp; i++)
+        //Listen for query
+        ssize_t message_size = recvfrom(socket_file_descriptor, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &len_c_adrress);
+        buffer[message_size] = '\0';
+
+        //Get requested domain name and query type from packet
+        char *ptr = buffer;
+        ptr += DNS_HEADER_SIZE; //always 12 bytes
+        string req_domain;
+        while (*ptr != '\000')  //example bytes in packet: \003www\003wis\003fit\005vutbr\002cz
         {
-            printf("%c", ptr[i]);
+            int tmp = (int)*ptr;    //get length of next part
+            ptr += 1;
+            for (int i = 0; i < tmp; i++)
+            {
+                req_domain.append(1, ptr[i]);   //append byte by byte
+            }
+            if (ptr[tmp] != '\000')    
+                req_domain.append(1, '.');   //add delimeter 
+            ptr += tmp;
         }
-        printf(".");
-        ptr += tmp;
+        ptr += 1;
+        short query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
+
+        cout << req_domain << "\n"
+            << query_type << "\n"; //DEBUG
     }
-    int type = (int)*ptr;
-    printf("%d", type);
     //int rc = forward_query(server, buffer, &client_address, socket_file_descriptor);
-    //printf("%.*s\n", BUFFER_SIZE, buffer); //debug
     //https://www.geeksforgeeks.org/socket-programming-cc/
 }
