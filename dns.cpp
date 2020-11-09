@@ -11,6 +11,10 @@ using namespace std;
 #include <string.h>
 #include <pcap/pcap.h>
 #include <netinet/udp.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #define BUFFER_SIZE 1024
 #define DEFAULT_PORT 53
 
