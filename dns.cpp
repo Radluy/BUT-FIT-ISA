@@ -15,6 +15,7 @@ using namespace std;
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #define BUFFER_SIZE 1024
 #define DEFAULT_PORT 53
 
