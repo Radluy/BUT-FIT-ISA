@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${fileDirname}/${fileBasenameNoExtension}",
             "args": ["-s 8.8.8.8",
-                     "-p 5353",
+                     "-p 1234",
                      "-f file.txt"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

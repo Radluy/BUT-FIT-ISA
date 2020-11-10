@@ -49,14 +49,15 @@ bool verbose = false;
 *
 *return 0 on success, -1 on error
 */ 
-int forward_query(string dns_server, char buffer[BUFFER_SIZE], struct sockaddr_in* client_address, int socket_file_descriptor)
+int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,struct sockaddr_in* client_address, int socket_file_descriptor)
 {
     //dns_server = dns_server.substr(1);  //vscode debug only
     bool domain = false;
-    struct sockaddr_in server_address;
+    struct sockaddr_in server_address, local_address;
     struct in_addr pton_res;
     struct addrinfo *result;
-    if (inet_pton(AF_INET, dns_server.c_str(), &pton_res) != 1)   //try ipv4
+    socklen_t len;
+    if (inet_pton(AF_INET, dns_server.c_str(), &pton_res) != 1) //try ipv4
     {
         
         if (inet_pton(AF_INET6, dns_server.c_str(), &pton_res) != 1)  //try ipv6
@@ -84,33 +85,47 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], struct sockaddr_i
 
     server_address.sin_addr = pton_res;
     server_address.sin_port = htons(DEFAULT_PORT);
-    int forward_socket_fd;
+    int forward_socket_fd, send_res;
     if ((forward_socket_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
         cerr << "Creating socket file descriptor failed.\n" << strerror(errno) << "\n";
         return -1;
     }
-    /*if ( bind(forward_socket_fd, (const struct sockaddr *)&server_address, sizeof(server_address)) < 0 ) 
-    {
-        cerr << "Binding address to socket failed.\n" << strerror(errno) << "\n";
-        return -1;
-    }*/
+    len = sizeof(server_address);
     //forward query to DNS server
     if (!domain)
     {
-        sendto(forward_socket_fd, (const char *)buffer, strlen(buffer), 0, (const struct sockaddr *)&server_address, sizeof(server_address));
+        send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, (const struct sockaddr *)&server_address, len);
     }
     else
     {
-        sendto(socket_file_descriptor, (const char *)buffer, strlen(buffer), 0, (const struct sockaddr *)&result->ai_addr, sizeof(result->ai_addr));
+        send_res = sendto(socket_file_descriptor, (const char *)buffer, message_size, 0, (const struct sockaddr *)&result->ai_addr, sizeof(result->ai_addr));
     }
+    if (send_res == -1)
+        cerr << "Forwarding failed.\n";
+    
     //recieve response
-    cout << ntohs(server_address.sin_addr.s_addr); //debug
-    cout << ntohs(server_address.sin_port); //debug
-    int message_length = recvfrom(forward_socket_fd, (char *)buffer, BUFFER_SIZE, 0, nullptr, nullptr);
+    len = sizeof(local_address);
+    if (getsockname(forward_socket_fd, (struct sockaddr *)&local_address, &len) == -1)
+        cerr << "Getting local address failed.\n";
+
+    //cout << "WAITING FOR RESPONSE\n";
+    int message_length = recvfrom(forward_socket_fd, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&local_address, &len);
+    //cout << "MESSAGE RECIEVED\n"; //debug
     buffer[message_length] = '\0';
+
+    for (int i = 0; i < message_length; i++)
+    {
+        cout << buffer[i];
+    }
+    return 0;
+
     //forward response to client
-    sendto(socket_file_descriptor, (const char *)buffer, message_length, 0, (const struct sockaddr *)&client_address, sizeof(client_address));
+    len = sizeof(*client_address);
+    send_res =  sendto(socket_file_descriptor, buffer, message_length, 0, (const struct sockaddr *)&client_address, len);
+    if (send_res == -1)
+        cerr << "Forwarding failed.\n";
+    //cout << "RESPONSE SENT TO CLIENT\n";
     return 0;
 }
 
@@ -228,10 +243,8 @@ int main(int argc, char *argv[])
         ptr += 1;
         short query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
 
-        cout << req_domain << "\n"
-            << query_type << "\n"; //DEBUG
-
-        int rc = forward_query(server, buffer, &client_address, socket_file_descriptor);
+        //cout << req_domain << "\n" << query_type << "\n"; //DEBUG
+        int rc = forward_query(server, buffer, message_size, &client_address, socket_file_descriptor);
         if (rc != 0)
             cerr << "Forwarding query failed.\n";
     }
