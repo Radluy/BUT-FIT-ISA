@@ -259,8 +259,16 @@ int main(int argc, char *argv[])
         ptr += 1;
         short query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
         if (query_type != 1)
-        {
-            //TODO send error message "unsupported query type"
+        {   //TODO
+            buffer[3] = buffer[3] | 128; //10000000-> QR(1) == response
+            buffer[4] = buffer[4] & 240; //11110000-> clear RCODE
+            buffer[4] = buffer[4] | 4; //00001000 RCODE(4) == not implemented
+            int send_res = sendto(socket_file_descriptor, buffer, message_size, 0, (struct sockaddr *)&client_address, len_c_adrress);
+            if (send_res == -1)
+            {
+                cerr << "Forwarding failed.\n";
+                continue;
+            }
             cerr << "Unsupported query type.\n";
             continue;
         }
@@ -269,7 +277,7 @@ int main(int argc, char *argv[])
         bool blacklisted = filter(req_domain, filter_file);
         if (blacklisted)
         {
-            //TODO send error message "blacklisted domain requested"
+
             cerr << "Blacklisted domain requested.\n";
             continue;
         }
