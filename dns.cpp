@@ -16,6 +16,7 @@ using namespace std;
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <fstream>
 #define BUFFER_SIZE 1024
 #define DEFAULT_PORT 53
 #define DNS_HEADER_SIZE 12
@@ -44,6 +45,25 @@ struct DNS_HEADER
 
 //global flag
 bool verbose = false;
+
+/*
+check if domain is in blacklist
+*/
+bool filter(string req_domain, string filter_file)
+{
+    ifstream in(filter_file);
+    string line;
+    while (getline(in, line))
+    {
+        if (line.size() == 0 || line[0] == '#')
+            continue;   //skip empty lines and comments
+        
+        if (req_domain.find(line) != string::npos)
+            return true;
+    }
+    return false;
+}
+
 /*forwards original query to specified dns server and sends response to client
 *
 *
@@ -234,11 +254,23 @@ int main(int argc, char *argv[])
                 req_domain.append(1, '.');   //add delimeter 
             ptr += tmp;
         }
+
+        //Check if query type is the only supported "A" type
         ptr += 1;
         short query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
         if (query_type != 1)
         {
             //TODO send error message "unsupported query type"
+            cerr << "Unsupported query type.\n";
+            continue;
+        }
+
+        //search for requested domain in blacklist
+        bool blacklisted = filter(req_domain, filter_file);
+        if (blacklisted)
+        {
+            //TODO send error message "blacklisted domain requested"
+            cerr << "Blacklisted domain requested.\n";
             continue;
         }
 
