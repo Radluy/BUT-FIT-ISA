@@ -236,6 +236,11 @@ int main(int argc, char *argv[])
         }
         ptr += 1;
         short query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
+        if (query_type != 1)
+        {
+            //TODO send error message "unsupported query type"
+            continue;
+        }
 
         //forward query to specified dns resolver and send answer to client
         int rc = forward_query(server, buffer, message_size, &client_address, socket_file_descriptor);  
