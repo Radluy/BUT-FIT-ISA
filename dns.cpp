@@ -47,7 +47,7 @@ bool verbose = false;
 /*forwards original query to specified dns server and sends response to client
 *
 *
-*return 0 on success, -1 on error
+*return length of response from resolver on success, -1 on error
 */ 
 int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,struct sockaddr_in* client_address, int socket_file_descriptor)
 {
@@ -99,7 +99,7 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     }
     else
     {
-        send_res = sendto(socket_file_descriptor, (const char *)buffer, message_size, 0, (const struct sockaddr *)&result->ai_addr, sizeof(result->ai_addr));
+        send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, (const struct sockaddr *)&result->ai_addr, sizeof(result->ai_addr));
     }
     if (send_res == -1)
         cerr << "Forwarding failed.\n";
@@ -114,22 +114,16 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     //cout << "MESSAGE RECIEVED\n"; //debug
     buffer[message_length] = '\0';
 
-    for (int i = 0; i < message_length; i++)
-    {
-        cout << buffer[i];
-    }
-    return 0;
-
-    //forward response to client
-    len = sizeof(*client_address);
-    send_res =  sendto(socket_file_descriptor, buffer, message_length, 0, (const struct sockaddr *)&client_address, len);
-    if (send_res == -1)
-        cerr << "Forwarding failed.\n";
     //cout << "RESPONSE SENT TO CLIENT\n";
-    return 0;
+    return message_length;
 }
 
+/*
+main function
+...
+foo bar
 //dns -s server [-p port] -f filter_file
+*/
 int main(int argc, char *argv[])
 {
     string server;
@@ -223,7 +217,7 @@ int main(int argc, char *argv[])
         //Listen for query
         ssize_t message_size = recvfrom(socket_file_descriptor, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &len_c_adrress);
         buffer[message_size] = '\0';
-
+        //sendto(socket_file_descriptor, buffer, message_size, 0, (struct sockaddr *)&client_address, len_c_adrress);    //DEBUG
         //Get requested domain name and query type from packet
         char *ptr = buffer;
         ptr += DNS_HEADER_SIZE; //always 12 bytes
@@ -243,10 +237,20 @@ int main(int argc, char *argv[])
         ptr += 1;
         short query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
 
-        //cout << req_domain << "\n" << query_type << "\n"; //DEBUG
-        int rc = forward_query(server, buffer, message_size, &client_address, socket_file_descriptor);
-        if (rc != 0)
+        //forward query to specified dns resolver and send answer to client
+        int rc = forward_query(server, buffer, message_size, &client_address, socket_file_descriptor);  
+        if (rc == -1)
+        {
             cerr << "Forwarding query failed.\n";
+            continue;
+        }
+        int send_res = sendto(socket_file_descriptor, buffer, rc, 0, (struct sockaddr *)&client_address, len_c_adrress);
+        if (send_res == -1)
+        {
+            cerr << "Forwarding failed.\n";
+            continue;
+        }
+
     }
     //https://www.geeksforgeeks.org/socket-programming-cc/
 }
