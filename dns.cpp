@@ -57,12 +57,13 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     struct in_addr pton_res;
     struct addrinfo *result;
     struct sockaddr *sock_address;
+    struct sockaddr_in6 ipv6_serv_address;
     socklen_t len;
     int dom_sockfd, forward_socket_fd, send_res, message_length;
-    if (inet_pton(AF_INET, dns_server.c_str(), &pton_res) != 1) //try ipv4
+    if (inet_pton(AF_INET, dns_server.c_str(), &server_address.sin_addr) != 1) //try ipv4
     {
         
-        if (inet_pton(AF_INET6, dns_server.c_str(), &pton_res) != 1)  //try ipv6
+        if (inet_pton(AF_INET6, dns_server.c_str(), &ipv6_serv_address.sin6_addr) != 1)  //try ipv6
         {
             //linux man page of getaddrinfo
             struct addrinfo hints;
@@ -96,29 +97,38 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     if (domain)
     {   //web.cecs.pdx.edu 
         do
-        {/* each of the returned IP address is tried*/
+        {   //try each address from addrinfo result
             forward_socket_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
             if (forward_socket_fd >= 0)
-            break; /*success*/
+            break; //stop at success
         }
         while ((result = result->ai_next) != NULL);
-        sock_address = (sockaddr*)malloc(result->ai_addrlen);
+        sock_address = (sockaddr*)malloc(result->ai_addrlen);   //allocate space for resolver address
         memcpy(sock_address, result->ai_addr, result->ai_addrlen);
         len = result->ai_addrlen;
         send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, sock_address, len);
     }
-    else
+    else    //server address is in ipv4/ipv6 form
     {
-        server_address.sin_addr = pton_res;
         server_address.sin_port = htons(DEFAULT_PORT);
         if ((forward_socket_fd = socket(server_address.sin_family, SOCK_DGRAM, 0)) < 0)
         {
             cerr << "Creating socket file descriptor failed.\n" << strerror(errno) << "\n";
             return -1;
         }
-        len = sizeof(server_address);
-        send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, (const struct sockaddr *)&server_address, len);
-    }
+        if (server_address.sin_family == AF_INET)
+        {
+            len = sizeof(server_address);
+            send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, (const struct sockaddr *)&server_address, len);
+        }
+        else
+        {
+            len = sizeof(sockaddr_in6);
+            ipv6_serv_address.sin6_family = AF_INET6;
+            ipv6_serv_address.sin6_port = htons(DEFAULT_PORT);
+            send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, (const struct sockaddr *)&ipv6_serv_address, len);
+        }
+        }
 
     if (send_res == -1)
         cerr << "Forwarding failed.\n";
