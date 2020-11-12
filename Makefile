@@ -7,6 +7,6 @@ all:
 run: all
 	sudo ./$(BIN) $(OPTIONS)
 example: all
-	sudo ./$(BIN) -s 8.8.8.8 -f filterfile.txt -p 1234	
+	sudo ./$(BIN) -s 8.8.8.8 -f filterfile.txt -p 5353	
 clean: 
 	rm $(BIN)

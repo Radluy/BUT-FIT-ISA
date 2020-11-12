@@ -21,27 +21,6 @@ using namespace std;
 #define DEFAULT_PORT 53
 #define DNS_HEADER_SIZE 12
 
-struct DNS_HEADER
-{
-    unsigned short id ; // identification number
- 
-    unsigned char qr :1; // query/response flag
-    unsigned char opcode :4; // purpose of message
-
-    unsigned char aa :1; // authoritive answer
-    unsigned char tc :1; // truncated message
-    unsigned char rd :1; // recursion desired
-    unsigned char ra :1; // recursion available
-    unsigned char z :1; // its z! reserved
-
-    unsigned char rcode :4; // response code
- 
-    unsigned short q_count; // number of question entries
-    unsigned short ans_count; // number of answer entries
-    unsigned short auth_count; // number of authority entries
-    unsigned short add_count; // number of resource entries
-};
-
 
 //global flag
 bool verbose = false;
@@ -61,6 +40,7 @@ bool filter(string req_domain, string filter_file)
         if (req_domain.find(line) != string::npos)
             return true;
     }
+    in.close();
     return false;
 }
 
@@ -86,7 +66,12 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
             struct addrinfo hints;
             hints.ai_family = AF_UNSPEC;
             hints.ai_socktype = SOCK_DGRAM;
-            if (getaddrinfo(nullptr, dns_server.c_str(), &hints, &result) != 0) //try domain name
+            hints.ai_flags = AI_PASSIVE;    
+            hints.ai_protocol = 0;          
+            hints.ai_canonname = NULL;
+            hints.ai_addr = NULL;
+            hints.ai_next = NULL;
+            if (getaddrinfo(dns_server.c_str(), nullptr, &hints, &result) != 0) //try domain name
             {
                 cerr << "Incorrect IP address or domain name of DNS server specified.\n";
                 return -1;
@@ -103,10 +88,12 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
         server_address.sin_family = AF_INET;
     }
 
+    if (domain)
+        server_address.sin_family = result->ai_family;
     server_address.sin_addr = pton_res;
     server_address.sin_port = htons(DEFAULT_PORT);
     int forward_socket_fd, send_res;
-    if ((forward_socket_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    if ((forward_socket_fd = socket(server_address.sin_family, SOCK_DGRAM, 0)) < 0)
     {
         cerr << "Creating socket file descriptor failed.\n" << strerror(errno) << "\n";
         return -1;
@@ -119,7 +106,7 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     }
     else
     {
-        send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, (const struct sockaddr *)&result->ai_addr, sizeof(result->ai_addr));
+        send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, (const struct sockaddr *)result->ai_addr, sizeof(result->ai_addr));
     }
     if (send_res == -1)
         cerr << "Forwarding failed.\n";
@@ -204,6 +191,13 @@ int main(int argc, char *argv[])
         cerr << "Option -s or -f is missing\n" << "usage: dns -s server [-p port] -f filter_file\n";
         return -1;
     }
+
+    //check for existance of filterfile
+    ifstream test(filter_file);
+    if (!test.good())
+        cerr << "Specified filter file does not exist. Filtering will have no effect.\n";
+    test.close();
+
     //Create file descriptor for socket
     int socket_file_descriptor, new_socket;
     if ((socket_file_descriptor = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
@@ -213,7 +207,12 @@ int main(int argc, char *argv[])
     }
 
     //Set optional settings for socket: address reusability etc. 
-    //if (setsockopt(socket_file_descriptor, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, nullptr, nullptr))
+     int reuse = 1;
+    if (setsockopt(socket_file_descriptor, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &reuse, sizeof(reuse))< 0)
+    {
+        cerr << "Setting optional socket options failed.\n";
+        return -1;
+    }
 
     //Create server address
     struct sockaddr_in address;

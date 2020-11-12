@@ -11,7 +11,7 @@
             "program": "${fileDirname}/${fileBasenameNoExtension}",
             "args": ["-s 8.8.8.8",
                      "-p 1234",
-                     "-f file.txt"],
+                     "-f filterfile.txt"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
