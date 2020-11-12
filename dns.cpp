@@ -131,7 +131,10 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
         }
 
     if (send_res == -1)
+    {
         cerr << "Forwarding failed.\n";
+        return -1;
+    }
     //recieve response
     len = sizeof(local_address);
     if (getsockname(forward_socket_fd, (struct sockaddr *)&local_address, &len) == -1)
@@ -273,6 +276,11 @@ int main(int argc, char *argv[])
                 req_domain.append(1, '.');   //add delimeter 
             ptr += tmp;
         }
+
+        //Check recursion desire
+        char recursion_desired = buffer[2] & 1; //00000001-> RD flag
+        if (recursion_desired == '\001')
+            buffer[3] |= 128; //set RA flag
 
         //Check if query type is the only supported "A" type
         ptr += 1;
