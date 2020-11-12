@@ -56,7 +56,9 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     struct sockaddr_in server_address, local_address;
     struct in_addr pton_res;
     struct addrinfo *result;
+    struct sockaddr *sock_address;
     socklen_t len;
+    int dom_sockfd, forward_socket_fd, send_res, message_length;
     if (inet_pton(AF_INET, dns_server.c_str(), &pton_res) != 1) //try ipv4
     {
         
@@ -71,7 +73,9 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
             hints.ai_canonname = NULL;
             hints.ai_addr = NULL;
             hints.ai_next = NULL;
-            if (getaddrinfo(dns_server.c_str(), nullptr, &hints, &result) != 0) //try domain name
+            char port[2];
+            sprintf(port, "%d", DEFAULT_PORT);
+            if (getaddrinfo(dns_server.c_str(), port, &hints, &result) != 0) //try domain name
             {
                 cerr << "Incorrect IP address or domain name of DNS server specified.\n";
                 return -1;
@@ -88,36 +92,42 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
         server_address.sin_family = AF_INET;
     }
 
+    //prepare variables for forwarding 
     if (domain)
-        server_address.sin_family = result->ai_family;
-    server_address.sin_addr = pton_res;
-    server_address.sin_port = htons(DEFAULT_PORT);
-    int forward_socket_fd, send_res;
-    if ((forward_socket_fd = socket(server_address.sin_family, SOCK_DGRAM, 0)) < 0)
-    {
-        cerr << "Creating socket file descriptor failed.\n" << strerror(errno) << "\n";
-        return -1;
-    }
-    len = sizeof(server_address);
-    //forward query to DNS server
-    if (!domain)
-    {
-        send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, (const struct sockaddr *)&server_address, len);
+    {   //web.cecs.pdx.edu 
+        do
+        {/* each of the returned IP address is tried*/
+            forward_socket_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+            if (forward_socket_fd >= 0)
+            break; /*success*/
+        }
+        while ((result = result->ai_next) != NULL);
+        sock_address = (sockaddr*)malloc(result->ai_addrlen);
+        memcpy(sock_address, result->ai_addr, result->ai_addrlen);
+        len = result->ai_addrlen;
+        send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, sock_address, len);
     }
     else
     {
-        send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, (const struct sockaddr *)result->ai_addr, sizeof(result->ai_addr));
+        server_address.sin_addr = pton_res;
+        server_address.sin_port = htons(DEFAULT_PORT);
+        if ((forward_socket_fd = socket(server_address.sin_family, SOCK_DGRAM, 0)) < 0)
+        {
+            cerr << "Creating socket file descriptor failed.\n" << strerror(errno) << "\n";
+            return -1;
+        }
+        len = sizeof(server_address);
+        send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, (const struct sockaddr *)&server_address, len);
     }
+
     if (send_res == -1)
         cerr << "Forwarding failed.\n";
-    
     //recieve response
     len = sizeof(local_address);
     if (getsockname(forward_socket_fd, (struct sockaddr *)&local_address, &len) == -1)
         cerr << "Getting local address failed.\n";
-
     //cout << "WAITING FOR RESPONSE\n";
-    int message_length = recvfrom(forward_socket_fd, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&local_address, &len);
+    message_length = recvfrom(forward_socket_fd, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&local_address, &len);
     //cout << "MESSAGE RECIEVED\n"; //debug
     buffer[message_length] = '\0';
 
