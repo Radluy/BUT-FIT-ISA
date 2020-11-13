@@ -165,7 +165,7 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
 }
 
 /*
-usage: dns -s server [-p port] -f filter_file
+usage: dns -s server [-p port] -f filter_file [-v]
 */
 int main(int argc, char *argv[])
 {
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
             break;
 
         case 'h':
-            cout << "usage: dns -s server [-p port] -f filter_file\n"
+            cout << "usage: dns -s server [-p port] -f filter_file [-v]\n"
                     "[-s] IP address or domain name of DNS server the query will be forwarded to.\n"
                     "[-p] Port on which the program will listen for queries. Default port is 53 if options isn't specified.\n"
                     "[-f] Name of filter file containing blacklisted domains.\n"
