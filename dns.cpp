@@ -117,6 +117,7 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
         memcpy(sock_address, result->ai_addr, result->ai_addrlen);
         len = result->ai_addrlen;
         send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, sock_address, len);
+        free(sock_address);
     }
     else    //server address is in ipv4/ipv6 form
     {
@@ -159,7 +160,6 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     if (verbose)
             cout << "response from resolver recieved...\n";
     buffer[message_length] = '\0';
-    free(sock_address);
     if (close(forward_socket_fd) != 0)
     {
         cerr << "Closing socket failed.\n";
