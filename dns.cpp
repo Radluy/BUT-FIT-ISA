@@ -21,7 +21,6 @@ using namespace std;
 #define DEFAULT_PORT 53
 #define DNS_HEADER_SIZE 12
 
-
 //global flag
 bool verbose = false;
 
@@ -34,7 +33,7 @@ returns true if requested domain is blacklisted, false otherwise
 bool filter(string req_domain, string filter_file)
 {
     if (verbose)
-            cerr << "comparing domain to blacklist...\n";
+            cout << "comparing domain to blacklist...\n";
     ifstream in(filter_file);
     string line;
     while (getline(in, line))
@@ -68,7 +67,7 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     socklen_t len;
     int dom_sockfd, forward_socket_fd, send_res, message_length;
     if (verbose)
-            cerr << "creating socket for dns resolver...\n";
+            cout << "creating socket for dns resolver...\n";
     if (inet_pton(AF_INET, dns_server.c_str(), &server_address.sin_addr) != 1) //try ipv4
     {
         
@@ -103,7 +102,7 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     }
 
     if (verbose)
-            cerr << "forwarding query to dns resolver...\n";
+            cout << "forwarding query to dns resolver...\n";
     //prepare variables for forwarding and send
     if (domain)
     {   //web.cecs.pdx.edu 
@@ -155,12 +154,12 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     }
 
     if (verbose)
-            cerr << "waiting for response from dns resolver...\n";
+            cout << "waiting for response from dns resolver...\n";
     message_length = recvfrom(forward_socket_fd, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&local_address, &len);
     if (verbose)
-            cerr << "response from resolver recieved...\n";
+            cout << "response from resolver recieved...\n";
     buffer[message_length] = '\0';
-
+    free(sock_address);
     return message_length;
 }
 
@@ -236,7 +235,7 @@ int main(int argc, char *argv[])
 
     //Create file descriptor for socket
     if (verbose)
-        cerr << "Creating socket file descriptor...\n";
+        cout << "Creating socket file descriptor...\n";
     int socket_file_descriptor, new_socket;
     if ((socket_file_descriptor = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
@@ -245,12 +244,12 @@ int main(int argc, char *argv[])
     }
 
     //Set optional settings for socket: address reusability etc. 
-     int reuse = 1;
+    /*int reuse = 1;
     if (setsockopt(socket_file_descriptor, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &reuse, sizeof(reuse))< 0)
     {
         cerr << "Setting optional socket options failed.\n";
         return -1;
-    }
+    }*/
 
     //Create server address
     struct sockaddr_in address;
@@ -273,10 +272,10 @@ int main(int argc, char *argv[])
     {
         //Listen for query
         if (verbose)
-            cerr << "listening for query...\n";
+            cout << "listening for query...\n";
         ssize_t message_size = recvfrom(socket_file_descriptor, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &len_c_adrress);
         if (verbose)
-            cerr << "query recieved...\nparsing...\n";
+            cout << "query recieved...\nparsing...\n";
         buffer[message_size] = '\0';
         //Get requested domain name and query type from packet
         char *ptr = buffer;
@@ -302,7 +301,7 @@ int main(int argc, char *argv[])
 
         //Check if query type is the only supported "A" type
         if (verbose)
-            cerr << "checking query type flag...\n";
+            cout << "checking query type flag...\n";
         ptr += 1;
         short query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
         if (query_type != 1)
@@ -311,7 +310,7 @@ int main(int argc, char *argv[])
             buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
             buffer[3] = buffer[3] | 4; //00001000 RCODE(4) == not implemented
             if (verbose)
-            cerr << "sending NOT IMPLEMENTED response to client...\n";
+            cout << "sending NOT IMPLEMENTED response to client...\n";
             int send_res = sendto(socket_file_descriptor, buffer, message_size, 0, (struct sockaddr *)&client_address, len_c_adrress);
             if (send_res == -1)
             {
@@ -326,7 +325,7 @@ int main(int argc, char *argv[])
         if (blacklisted)
         {
             if (verbose)
-            cerr << "sending REFUSED response to client...\n";
+                cout << "sending REFUSED response to client...\n";
             buffer[2] |= 128; //10000000-> QR(1) == response
             buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
             buffer[3] = buffer[3] | 5; //00000101 RCODE(5) == refused
@@ -347,7 +346,7 @@ int main(int argc, char *argv[])
             continue;
         }
         if (verbose)
-            cerr << "sending response to client...\n";
+            cout << "sending response to client...\n";
         int send_res = sendto(socket_file_descriptor, buffer, rc, 0, (struct sockaddr *)&client_address, len_c_adrress);
         if (send_res == -1)
         {

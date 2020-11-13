@@ -5,8 +5,8 @@ OPTIONS=
 all:
 	$(CC) dns.cpp -g -o $(BIN) -lpcap
 run: all
-	sudo ./$(BIN) $(OPTIONS)
+	./$(BIN) $(OPTIONS)
 example: all
-	sudo ./$(BIN) -s 8.8.8.8 -f filterfile.txt -p 5353	
+	./$(BIN) -s 8.8.8.8 -f filterfile.txt -p 5353	
 clean: 
 	rm $(BIN)
