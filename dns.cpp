@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
         }
 
         //forward query to specified dns resolver and send answer to client
-        int rc = forward_query(server, buffer, message_size, &client_address, socket_file_descriptor);  
+        int rc = forward_query(server, buffer, message_size, &client_address);  
         if (rc == -1)
         {
             cerr << "Forwarding query failed.\n";
