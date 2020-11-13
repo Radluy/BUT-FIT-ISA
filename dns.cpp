@@ -26,10 +26,15 @@ using namespace std;
 bool verbose = false;
 
 /*
-check if domain is in blacklist
+checks if domain is in blacklist
+@param req_domain string containing domain name queried by client
+@param filter_file name of file containing blacklisted domain names
+returns true if requested domain is blacklisted, false otherwise
 */
 bool filter(string req_domain, string filter_file)
 {
+    if (verbose)
+            cerr << "comparing domain to blacklist...\n";
     ifstream in(filter_file);
     string line;
     while (getline(in, line))
@@ -44,14 +49,16 @@ bool filter(string req_domain, string filter_file)
     return false;
 }
 
-/*forwards original query to specified dns server and sends response to client
-*
-*
-*return length of response from resolver on success, -1 on error
+/*
+forwards original query to specified dns resolver
+@param dns_server name of filter file specified in arg -f
+@param buffer buffer containing query from client
+@param message_size length of message in buffer
+@param client_address ip address struct of client 
+return length of response from resolver on success, -1 on error
 */ 
-int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,struct sockaddr_in* client_address, int socket_file_descriptor)
+int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,struct sockaddr_in* client_address)
 {
-    //dns_server = dns_server.substr(1);  //vscode debug only
     bool domain = false;
     struct sockaddr_in server_address, local_address;
     struct in_addr pton_res;
@@ -60,6 +67,8 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     struct sockaddr_in6 ipv6_serv_address;
     socklen_t len;
     int dom_sockfd, forward_socket_fd, send_res, message_length;
+    if (verbose)
+            cerr << "creating socket for dns resolver...\n";
     if (inet_pton(AF_INET, dns_server.c_str(), &server_address.sin_addr) != 1) //try ipv4
     {
         
@@ -93,7 +102,9 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
         server_address.sin_family = AF_INET;
     }
 
-    //prepare variables for forwarding 
+    if (verbose)
+            cerr << "forwarding query to dns resolver...\n";
+    //prepare variables for forwarding and send
     if (domain)
     {   //web.cecs.pdx.edu 
         do
@@ -117,12 +128,12 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
             return -1;
         }
         if (server_address.sin_family == AF_INET)
-        {
+        {   //send to ipv4 address
             len = sizeof(server_address);
             send_res = sendto(forward_socket_fd, (const char *)buffer, message_size, 0, (const struct sockaddr *)&server_address, len);
         }
         else
-        {
+        {   //send to ipv6 address
             len = sizeof(sockaddr_in6);
             ipv6_serv_address.sin6_family = AF_INET6;
             ipv6_serv_address.sin6_port = htons(DEFAULT_PORT);
@@ -138,21 +149,23 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
     //recieve response
     len = sizeof(local_address);
     if (getsockname(forward_socket_fd, (struct sockaddr *)&local_address, &len) == -1)
+    {
         cerr << "Getting local address failed.\n";
-    //cout << "WAITING FOR RESPONSE\n";
+        return -1;
+    }
+
+    if (verbose)
+            cerr << "waiting for response from dns resolver...\n";
     message_length = recvfrom(forward_socket_fd, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&local_address, &len);
-    //cout << "MESSAGE RECIEVED\n"; //debug
+    if (verbose)
+            cerr << "response from resolver recieved...\n";
     buffer[message_length] = '\0';
 
-    //cout << "RESPONSE SENT TO CLIENT\n";
     return message_length;
 }
 
 /*
-main function
-...
-foo bar
-//dns -s server [-p port] -f filter_file
+usage: dns -s server [-p port] -f filter_file
 */
 int main(int argc, char *argv[])
 {
@@ -160,7 +173,7 @@ int main(int argc, char *argv[])
     string filter_file;
     char buffer[BUFFER_SIZE];
     int port = DEFAULT_PORT;
-    while (true)
+    while (true)    //parse arguments
     {
         const auto opt = getopt(argc, argv, "s:f:p:hv");
 
@@ -222,6 +235,8 @@ int main(int argc, char *argv[])
     test.close();
 
     //Create file descriptor for socket
+    if (verbose)
+        cerr << "Creating socket file descriptor...\n";
     int socket_file_descriptor, new_socket;
     if ((socket_file_descriptor = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
@@ -257,9 +272,12 @@ int main(int argc, char *argv[])
     while (true)
     {
         //Listen for query
+        if (verbose)
+            cerr << "listening for query...\n";
         ssize_t message_size = recvfrom(socket_file_descriptor, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &len_c_adrress);
+        if (verbose)
+            cerr << "query recieved...\nparsing...\n";
         buffer[message_size] = '\0';
-        //sendto(socket_file_descriptor, buffer, message_size, 0, (struct sockaddr *)&client_address, len_c_adrress);    //DEBUG
         //Get requested domain name and query type from packet
         char *ptr = buffer;
         ptr += DNS_HEADER_SIZE; //always 12 bytes
@@ -283,6 +301,8 @@ int main(int argc, char *argv[])
             buffer[3] |= 128; //set RA flag
 
         //Check if query type is the only supported "A" type
+        if (verbose)
+            cerr << "checking query type flag...\n";
         ptr += 1;
         short query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
         if (query_type != 1)
@@ -290,13 +310,14 @@ int main(int argc, char *argv[])
             buffer[2] |= 128; //10000000-> QR(1) == response
             buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
             buffer[3] = buffer[3] | 4; //00001000 RCODE(4) == not implemented
+            if (verbose)
+            cerr << "sending NOT IMPLEMENTED response to client...\n";
             int send_res = sendto(socket_file_descriptor, buffer, message_size, 0, (struct sockaddr *)&client_address, len_c_adrress);
             if (send_res == -1)
             {
                 cerr << "Forwarding failed.\n";
                 continue;
             }
-            cerr << "Unsupported query type.\n";
             continue;
         }
 
@@ -304,6 +325,8 @@ int main(int argc, char *argv[])
         bool blacklisted = filter(req_domain, filter_file);
         if (blacklisted)
         {
+            if (verbose)
+            cerr << "sending REFUSED response to client...\n";
             buffer[2] |= 128; //10000000-> QR(1) == response
             buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
             buffer[3] = buffer[3] | 5; //00000101 RCODE(5) == refused
@@ -313,7 +336,6 @@ int main(int argc, char *argv[])
                 cerr << "Forwarding failed.\n";
                 continue;
             }
-            cerr << "Blacklisted domain requested.\n";
             continue;
         }
 
@@ -324,6 +346,8 @@ int main(int argc, char *argv[])
             cerr << "Forwarding query failed.\n";
             continue;
         }
+        if (verbose)
+            cerr << "sending response to client...\n";
         int send_res = sendto(socket_file_descriptor, buffer, rc, 0, (struct sockaddr *)&client_address, len_c_adrress);
         if (send_res == -1)
         {
