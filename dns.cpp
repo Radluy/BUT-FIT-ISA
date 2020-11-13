@@ -275,7 +275,7 @@ int main(int argc, char *argv[])
 
     while (true)
     {
-        try:
+        try
         {
             //Listen for query
             if (verbose)
