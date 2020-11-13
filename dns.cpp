@@ -160,6 +160,11 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
             cout << "response from resolver recieved...\n";
     buffer[message_length] = '\0';
     free(sock_address);
+    if (close(forward_socket_fd) != 0)
+    {
+        cerr << "Closing socket failed.\n";
+        return -1;
+    }
     return message_length;
 }
 
@@ -270,90 +275,97 @@ int main(int argc, char *argv[])
 
     while (true)
     {
-        //Listen for query
-        if (verbose)
-            cout << "listening for query...\n";
-        ssize_t message_size = recvfrom(socket_file_descriptor, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &len_c_adrress);
-        if (verbose)
-            cout << "query recieved...\nparsing...\n";
-        buffer[message_size] = '\0';
-        //Get requested domain name and query type from packet
-        char *ptr = buffer;
-        ptr += DNS_HEADER_SIZE; //always 12 bytes
-        string req_domain;
-        while (*ptr != '\000')  //example bytes in packet: \003www\003wis\003fit\005vutbr\002cz
+        try:
         {
-            int tmp = (int)*ptr;    //get length of next part
+            //Listen for query
+            if (verbose)
+                cout << "listening for query...\n";
+            ssize_t message_size = recvfrom(socket_file_descriptor, (char *)buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &len_c_adrress);
+            if (verbose)
+                cout << "query recieved...\nparsing...\n";
+            buffer[message_size] = '\0';
+            //Get requested domain name and query type from packet
+            char *ptr = buffer;
+            ptr += DNS_HEADER_SIZE; //always 12 bytes
+            string req_domain;
+            while (*ptr != '\000')  //example bytes in packet: \003www\003wis\003fit\005vutbr\002cz
+            {
+                int tmp = (int)*ptr;    //get length of next part
+                ptr += 1;
+                for (int i = 0; i < tmp; i++)
+                {
+                    req_domain.append(1, ptr[i]);   //append byte by byte
+                }
+                if (ptr[tmp] != '\000')    
+                    req_domain.append(1, '.');   //add delimeter 
+                ptr += tmp;
+            }
+
+            //Check recursion desire
+            char recursion_desired = buffer[2] & 1; //00000001-> RD flag
+            if (recursion_desired == '\001')
+                buffer[3] |= 128; //set RA flag
+
+            //Check if query type is the only supported "A" type
+            if (verbose)
+                cout << "checking query type flag...\n";
             ptr += 1;
-            for (int i = 0; i < tmp; i++)
-            {
-                req_domain.append(1, ptr[i]);   //append byte by byte
+            short query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
+            if (query_type != 1)
+            {   
+                buffer[2] |= 128; //10000000-> QR(1) == response
+                buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
+                buffer[3] = buffer[3] | 4; //00001000 RCODE(4) == not implemented
+                if (verbose)
+                cout << "sending NOT IMPLEMENTED response to client...\n";
+                int send_res = sendto(socket_file_descriptor, buffer, message_size, 0, (struct sockaddr *)&client_address, len_c_adrress);
+                if (send_res == -1)
+                {
+                    cerr << "Forwarding failed.\n";
+                    continue;
+                }
+                continue;
             }
-            if (ptr[tmp] != '\000')    
-                req_domain.append(1, '.');   //add delimeter 
-            ptr += tmp;
-        }
 
-        //Check recursion desire
-        char recursion_desired = buffer[2] & 1; //00000001-> RD flag
-        if (recursion_desired == '\001')
-            buffer[3] |= 128; //set RA flag
+            //search for requested domain in blacklist
+            bool blacklisted = filter(req_domain, filter_file);
+            if (blacklisted)
+            {
+                if (verbose)
+                    cout << "sending REFUSED response to client...\n";
+                buffer[2] |= 128; //10000000-> QR(1) == response
+                buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
+                buffer[3] = buffer[3] | 5; //00000101 RCODE(5) == refused
+                int send_res = sendto(socket_file_descriptor, buffer, message_size, 0, (struct sockaddr *)&client_address, len_c_adrress);
+                if (send_res == -1)
+                {
+                    cerr << "Forwarding failed.\n";
+                    continue;
+                }
+                continue;
+            }
 
-        //Check if query type is the only supported "A" type
-        if (verbose)
-            cout << "checking query type flag...\n";
-        ptr += 1;
-        short query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
-        if (query_type != 1)
-        {   
-            buffer[2] |= 128; //10000000-> QR(1) == response
-            buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
-            buffer[3] = buffer[3] | 4; //00001000 RCODE(4) == not implemented
+            //forward query to specified dns resolver and send answer to client
+            int rc = forward_query(server, buffer, message_size, &client_address);  
+            if (rc == -1)
+            {
+                cerr << "Forwarding query failed.\n";
+                continue;
+            }
             if (verbose)
-            cout << "sending NOT IMPLEMENTED response to client...\n";
-            int send_res = sendto(socket_file_descriptor, buffer, message_size, 0, (struct sockaddr *)&client_address, len_c_adrress);
+                cout << "sending response to client...\n";
+            int send_res = sendto(socket_file_descriptor, buffer, rc, 0, (struct sockaddr *)&client_address, len_c_adrress);
             if (send_res == -1)
             {
                 cerr << "Forwarding failed.\n";
                 continue;
             }
-            continue;
         }
-
-        //search for requested domain in blacklist
-        bool blacklisted = filter(req_domain, filter_file);
-        if (blacklisted)
+        catch(const exception& e)
         {
-            if (verbose)
-                cout << "sending REFUSED response to client...\n";
-            buffer[2] |= 128; //10000000-> QR(1) == response
-            buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
-            buffer[3] = buffer[3] | 5; //00000101 RCODE(5) == refused
-            int send_res = sendto(socket_file_descriptor, buffer, message_size, 0, (struct sockaddr *)&client_address, len_c_adrress);
-            if (send_res == -1)
-            {
-                cerr << "Forwarding failed.\n";
-                continue;
-            }
-            continue;
+            close(socket_file_descriptor);
         }
-
-        //forward query to specified dns resolver and send answer to client
-        int rc = forward_query(server, buffer, message_size, &client_address);  
-        if (rc == -1)
-        {
-            cerr << "Forwarding query failed.\n";
-            continue;
-        }
-        if (verbose)
-            cout << "sending response to client...\n";
-        int send_res = sendto(socket_file_descriptor, buffer, rc, 0, (struct sockaddr *)&client_address, len_c_adrress);
-        if (send_res == -1)
-        {
-            cerr << "Forwarding failed.\n";
-            continue;
-        }
-
+        
     }
     //https://www.geeksforgeeks.org/socket-programming-cc/
 }
