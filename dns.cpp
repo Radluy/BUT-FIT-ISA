@@ -9,7 +9,6 @@ using namespace std;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pcap/pcap.h>
 #include <netinet/udp.h>
 #include <sys/types.h>
 #include <sys/socket.h>
