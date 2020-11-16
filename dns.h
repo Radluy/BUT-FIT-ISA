@@ -1,3 +1,9 @@
+/********************************************
+ *      Author: Radoslav Elias              *
+ *      Subject: ISA                        *
+ *      Project: Filtering DNS resolver     *
+ ********************************************/
+
 #include <iostream>
 #include <getopt.h>
 #include <unistd.h>

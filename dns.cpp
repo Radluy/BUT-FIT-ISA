@@ -1,6 +1,8 @@
-/*************************************
- *      Author: Radoslav Elias       *
- *************************************/
+/********************************************
+ *      Author: Radoslav Elias              *
+ *      Subject: ISA                        *
+ *      Project: Filtering DNS resolver     *
+ ********************************************/
 
 using namespace std;
 #include "dns.h"

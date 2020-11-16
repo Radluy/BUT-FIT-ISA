@@ -1,3 +1,9 @@
+# ********************************************
+# *      Author: Radoslav Elias              *
+# *      Subject: ISA                        *
+# *      Project: Filtering DNS resolver     *
+# ******************************************** 
+
 CC=g++
 BIN=dns
 OPTIONS=

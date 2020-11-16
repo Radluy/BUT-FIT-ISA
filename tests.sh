@@ -1,3 +1,8 @@
+# ********************************************
+# *      Author: Radoslav Elias              *
+# *      Subject: ISA                        *
+# *      Project: Filtering DNS resolver     *
+# ******************************************** 
 
 #start server
 g++ dns.cpp -g -o dns > /dev/null 2>&1
