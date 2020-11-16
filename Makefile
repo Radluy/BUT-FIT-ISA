@@ -7,7 +7,7 @@ all:
 run: all
 	./$(BIN) $(OPTIONS)
 example: all
-	./$(BIN) -s 8.8.8.8 -f filterfile2.txt -p 5353	
+	./$(BIN) -s 8.8.8.8 -f filterfile2.txt -p 6824	
 clean: 
 	rm $(BIN)
 test: all
