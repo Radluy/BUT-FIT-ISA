@@ -168,6 +168,60 @@ int forward_query(string dns_server, char buffer[BUFFER_SIZE], int message_size,
 }
 
 /*
+Get requested domain name and query type from packet
+Check DNS header flags
+*/
+string parse_buffer(char *buffer, short *query_type)
+{
+    //Get requested domain name and query type from packet
+    char *ptr = buffer;
+    string req_domain;
+    ptr += DNS_HEADER_SIZE; //always 12 bytes
+    while (*ptr != '\000')  //example bytes in packet: \003www\003wis\003fit\005vutbr\002cz
+    {
+        int tmp = (int)*ptr;    //get length of next part
+        ptr += 1;
+        for (int i = 0; i < tmp; i++)
+        {
+            req_domain.append(1, ptr[i]);   //append byte by byte
+        }
+        if (ptr[tmp] != '\000')    
+            req_domain.append(1, '.');   //add delimeter 
+        ptr += tmp;
+    }
+    //Check recursion desire
+    char recursion_desired = buffer[2] & 1; //00000001-> RD flag
+    if (recursion_desired == '\001')
+        buffer[3] |= 128; //set RA flag
+
+    //Check if query type is the only supported "A" type
+    if (verbose)
+        cout << "checking query type flag...\n";
+    ptr += 1;
+    *query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
+    if (*query_type != 1)
+    {
+        buffer[2] |= 128; //10000000-> QR(1) == response
+        buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
+        buffer[3] = buffer[3] | 4; //00001000 RCODE(4) == not implemented
+        if (verbose)
+            cout << "sending NOT IMPLEMENTED response to client...\n";
+    }
+    return req_domain;
+}
+
+/*
+set flags to refused query for blacklisted domain
+*/
+void set_refused(char * buffer)
+{
+    if (verbose)
+        cout << "sending REFUSED response to client...\n";
+    buffer[2] |= 128; //10000000-> QR(1) == response
+    buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
+    buffer[3] = buffer[3] | 5; //00000101 RCODE(5) == refused
+}
+/*
 usage: dns -s server [-p port] -f filter_file [-v]
 */
 int main(int argc, char *argv[])
@@ -240,7 +294,7 @@ int main(int argc, char *argv[])
     //Create file descriptor for socket
     if (verbose)
         cout << "Creating socket file descriptor...\n";
-    int socket_file_descriptor, new_socket;
+    int socket_file_descriptor;
     if ((socket_file_descriptor = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
         cerr << "Creating socket file descriptor failed.\n" << strerror(errno) << "\n";
@@ -248,12 +302,12 @@ int main(int argc, char *argv[])
     }
 
     //Set optional settings for socket: address reusability etc. 
-    /*int reuse = 1;
+    int reuse = 1;
     if (setsockopt(socket_file_descriptor, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &reuse, sizeof(reuse))< 0)
     {
         cerr << "Setting optional socket options failed.\n";
         return -1;
-    }*/
+    }
 
     //Create server address
     struct sockaddr_in address;
@@ -283,40 +337,10 @@ int main(int argc, char *argv[])
             if (verbose)
                 cout << "query recieved...\nparsing...\n";
             buffer[message_size] = '\0';
-            //Get requested domain name and query type from packet
-            char *ptr = buffer;
-            ptr += DNS_HEADER_SIZE; //always 12 bytes
-            string req_domain;
-            while (*ptr != '\000')  //example bytes in packet: \003www\003wis\003fit\005vutbr\002cz
-            {
-                int tmp = (int)*ptr;    //get length of next part
-                ptr += 1;
-                for (int i = 0; i < tmp; i++)
-                {
-                    req_domain.append(1, ptr[i]);   //append byte by byte
-                }
-                if (ptr[tmp] != '\000')    
-                    req_domain.append(1, '.');   //add delimeter 
-                ptr += tmp;
-            }
-
-            //Check recursion desire
-            char recursion_desired = buffer[2] & 1; //00000001-> RD flag
-            if (recursion_desired == '\001')
-                buffer[3] |= 128; //set RA flag
-
-            //Check if query type is the only supported "A" type
-            if (verbose)
-                cout << "checking query type flag...\n";
-            ptr += 1;
-            short query_type = (((short)*ptr) << 8) | *(ptr+1); //cast 2 bytes to short 
+            short query_type;
+            string req_domain = parse_buffer(buffer, &query_type);  //parse domain name and flags
             if (query_type != 1)
-            {   
-                buffer[2] |= 128; //10000000-> QR(1) == response
-                buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
-                buffer[3] = buffer[3] | 4; //00001000 RCODE(4) == not implemented
-                if (verbose)
-                cout << "sending NOT IMPLEMENTED response to client...\n";
+            {   //send NOTIMP
                 int send_res = sendto(socket_file_descriptor, buffer, message_size, 0, (struct sockaddr *)&client_address, len_c_adrress);
                 if (send_res == -1)
                 {
@@ -330,11 +354,7 @@ int main(int argc, char *argv[])
             bool blacklisted = filter(req_domain, filter_file);
             if (blacklisted)
             {
-                if (verbose)
-                    cout << "sending REFUSED response to client...\n";
-                buffer[2] |= 128; //10000000-> QR(1) == response
-                buffer[3] = buffer[3] & 240; //11110000-> clear RCODE
-                buffer[3] = buffer[3] | 5; //00000101 RCODE(5) == refused
+                set_refused(buffer);
                 int send_res = sendto(socket_file_descriptor, buffer, message_size, 0, (struct sockaddr *)&client_address, len_c_adrress);
                 if (send_res == -1)
                 {

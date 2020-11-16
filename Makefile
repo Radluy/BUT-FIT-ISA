@@ -3,7 +3,7 @@ BIN=dns
 OPTIONS=
 
 all:
-	$(CC) dns.cpp -g -o $(BIN) -lpcap
+	$(CC) dns.cpp -g -o $(BIN)
 run: all
 	./$(BIN) $(OPTIONS)
 example: all
