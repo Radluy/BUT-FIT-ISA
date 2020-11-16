@@ -302,12 +302,12 @@ int main(int argc, char *argv[])
     }
 
     //Set optional settings for socket: address reusability etc. 
-    int reuse = 1;
+    /*int reuse = 1;
     if (setsockopt(socket_file_descriptor, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &reuse, sizeof(reuse))< 0)
     {
         cerr << "Setting optional socket options failed.\n";
         return -1;
-    }
+    }*/
 
     //Create server address
     struct sockaddr_in address;

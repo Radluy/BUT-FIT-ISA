@@ -1,4 +1,3 @@
-#!/bin/bash
 
 #start server
 g++ dns.cpp -g -o dns > /dev/null 2>&1
