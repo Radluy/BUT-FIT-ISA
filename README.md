@@ -11,7 +11,7 @@ dns -s server [-p port] -f filter_file [-v]
     -v: príznak na výrečnosť programu. Server bude oznamovať na výstup akú činnosť vykonáva.  
 
 ## Príklad spustenia: 
-    ./dns -s 8.8.8.8 -f filterfile.txt -p 5353
+    ./dns -s 8.8.8.8 -f filterfile2.txt -p 1234
 alebo  
     make example
 

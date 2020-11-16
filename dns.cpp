@@ -301,14 +301,6 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    //Set optional settings for socket: address reusability etc. 
-    /*int reuse = 1;
-    if (setsockopt(socket_file_descriptor, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &reuse, sizeof(reuse))< 0)
-    {
-        cerr << "Setting optional socket options failed.\n";
-        return -1;
-    }*/
-
     //Create server address
     struct sockaddr_in address;
     address.sin_family = AF_INET;
@@ -386,5 +378,4 @@ int main(int argc, char *argv[])
         }
         
     }
-    //https://www.geeksforgeeks.org/socket-programming-cc/
 }
