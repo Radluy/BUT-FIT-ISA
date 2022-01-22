@@ -5,6 +5,7 @@ DNS type A queries over UDP are supported.
 
 ## Usage: 
 dns -s server [-p port] -f filter_file [-v]   
+
     -s: ipv4/ipv6 adress or DNS server domain name where the query will be forwarded.  
     -p: TCP port number of the resolver. If not specified, the default port number is 53. 
     -f: file name for the blacklist. If the specified file doesn't exist, no filter is applied and all queries are forwarded. 
