@@ -1,18 +1,18 @@
-# Filtrující DNS resolver
+# Filtering DNS resolver
 
-Program, ktorý prijíma dns dotazy a následne ich filtruje podľa blacklistu.
-Podporovaný je iba typ DNS dotazu A a  UDP protokol na transportnej vrstve.
+DNS resolver filtering queries by blacklist files. 
+DNS type A queries over UDP are supported.
 
-## Použitie: 
-dns -s server [-p port] -f filter_file [-v]  
-    -s: ipv4/ipv6 adresa alebo doménové meno DNS servera kam sa dotaz prepošle.  
-    -p: port na ktorom bude server počúvať. Ak nie je špecifikovaný tak sa použije port 53. 
-    -f: názov súboru ktorý obsahuje nežiadúce domény. Ak daný súbor neexistuje, všetky dotazy sa budú preposielať bez filtrovania. 
-    -v: príznak na výrečnosť programu. Server bude oznamovať na výstup akú činnosť vykonáva.  
+## Usage: 
+dns -s server [-p port] -f filter_file [-v]   
+    -s: ipv4/ipv6 adress or DNS server domain name where the query will be forwarded.  
+    -p: TCP port number of the resolver. If not specified, the default port number is 53. 
+    -f: file name for the blacklist. If the specified file doesn't exist, no filter is applied and all queries are forwarded. 
+    -v: verbosity flag, prints info about current operations.  
 
-## Príklad spustenia: 
+## Usage example: 
     ./dns -s 8.8.8.8 -f filterfile2.txt -p 1234
-alebo  
+or  
     make example
 
 #
